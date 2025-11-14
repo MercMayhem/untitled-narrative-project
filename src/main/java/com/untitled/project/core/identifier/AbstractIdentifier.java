@@ -18,8 +18,14 @@ public abstract class AbstractIdentifier<T> implements Identifier<T> {
     public final boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        AbstractIdentifier<?> other = (AbstractIdentifier<?>) obj;
-        return value.equals(other.value);
+        if (obj instanceof AbstractIdentifier<?>) {
+            // Safe to cast here
+            AbstractIdentifier<?> other = (AbstractIdentifier<?>) obj;
+            return value.equals(other.value);
+        } else {
+            return false;
+        }
+        
     }
 
     @Override
