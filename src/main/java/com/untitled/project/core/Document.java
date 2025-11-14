@@ -1,22 +1,24 @@
 package com.untitled.project.core;
 
-import java.util.HashSet;
+import java.util.Optional;
 
-import com.untitled.project.core.identifier.DocumentCollectionIdentifier;
 import com.untitled.project.core.identifier.DocumentIdentifier;
 import com.untitled.project.core.identifier.generator.IdentifierGenerator;
 
-public class Document<T, U> {
+public abstract class Document<T> {
     private final DocumentIdentifier<T> id;
-    HashSet<DocumentCollectionIdentifier<U>> documentCollectionId;
-    HashSet<DocumentIdentifier<T>> connectedDocumentsIdentifiers;
+    private Optional<DocumentContent> content;
 
-    public Document(HashSet<DocumentCollectionIdentifier<U>> documentCollectionId, IdentifierGenerator<DocumentIdentifier<T>, T> documentIdGenerator) {
-        this.documentCollectionId = documentCollectionId;
+    public Document(IdentifierGenerator<DocumentIdentifier<T>, T> documentIdGenerator) {
         this.id = documentIdGenerator.generateUnique();
+        this.content = Optional.empty();
     }
 
-    public DocumentIdentifier<T> getId() {
+    public final DocumentIdentifier<T> getId() {
         return this.id;
+    }
+
+    public Optional<DocumentContent> getContent() {
+        return this.content;
     }
 }
