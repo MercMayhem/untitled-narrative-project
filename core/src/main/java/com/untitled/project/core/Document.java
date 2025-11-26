@@ -5,12 +5,12 @@ import java.util.Optional;
 import com.untitled.project.core.identifier.DocumentIdentifier;
 import com.untitled.project.core.identifier.generator.IdentifierGenerator;
 
-public abstract class Document<T> {
-    private final DocumentIdentifier<T> id;
+public abstract class Document<T, U extends DocumentIdentifier<T>> {
+    private final U id;
     private Optional<DocumentContent> content;
-    private Optional<LinkedDocuments<T>> linkedDocuments;
+    private Optional<LinkedDocuments<T, U>> linkedDocuments;
 
-    public Document(IdentifierGenerator<DocumentIdentifier<T>, T> documentIdGenerator) {
+    public Document(IdentifierGenerator<U, T> documentIdGenerator) {
         this.id = documentIdGenerator.generateUnique();
         this.content = Optional.empty();
     }
@@ -27,11 +27,11 @@ public abstract class Document<T> {
         this.content = content;
     }
 
-    public Optional<LinkedDocuments<T>> getLinkedDocuments() {
+    public Optional<LinkedDocuments<T, U>> getLinkedDocuments() {
         return linkedDocuments;
     }
 
-    public void setLinkedDocuments(Optional<LinkedDocuments<T>> linkedDocuments) {
+    public void setLinkedDocuments(Optional<LinkedDocuments<T, U>> linkedDocuments) {
         this.linkedDocuments = linkedDocuments;
     }
 }
