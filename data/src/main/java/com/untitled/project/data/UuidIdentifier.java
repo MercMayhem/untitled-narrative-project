@@ -12,7 +12,13 @@ public class UuidIdentifier implements DocumentIdentifier<UUID>, SnapshotIdentif
         this.id = id;
     }
 
+    @Override
     public UUID value() {
         return this.id;
+    }
+
+    @Override
+    public String rawString() {
+        return this.id.toString();
     }
 }
