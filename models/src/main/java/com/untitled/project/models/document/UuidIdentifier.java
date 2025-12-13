@@ -1,4 +1,4 @@
-package com.untitled.project.data;
+package com.untitled.project.models.document;
 
 import java.util.UUID;
 

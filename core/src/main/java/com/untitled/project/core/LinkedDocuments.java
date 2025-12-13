@@ -5,11 +5,11 @@ import java.util.Optional;
 
 import com.untitled.project.core.identifier.DocumentIdentifier;
 
-public class LinkedDocuments<T, U extends DocumentIdentifier<T>> {
-    private final HashSet<Document<T, U>> documents;
+public class LinkedDocuments<T, U extends DocumentIdentifier<T>, V extends DocumentContent> {
+    private final HashSet<Document<T, U, V>> documents;
     private final Optional<Integer> remaining;
 
-    public LinkedDocuments(HashSet<Document<T, U>> documents, Optional<Integer> remaining){
+    public LinkedDocuments(HashSet<Document<T, U, V>> documents, Optional<Integer> remaining){
         this.documents = documents;
         this.remaining = remaining;
     }
@@ -18,7 +18,7 @@ public class LinkedDocuments<T, U extends DocumentIdentifier<T>> {
         return remaining;
     }
 
-    public HashSet<Document<T, U>> getDocuments() {
+    public HashSet<Document<T, U, V>> getDocuments() {
         return documents;
     }
 }

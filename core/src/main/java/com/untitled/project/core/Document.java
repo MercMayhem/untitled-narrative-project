@@ -5,9 +5,9 @@ import java.util.Optional;
 import com.untitled.project.core.identifier.DocumentIdentifier;
 import com.untitled.project.core.identifier.generator.IdentifierGenerator;
 
-public abstract class Document<T, U extends DocumentIdentifier<T>> {
+public abstract class Document<T, U extends DocumentIdentifier<T>, V extends DocumentContent> {
     private final U id;
-    private Optional<DocumentContent> content;
+    private Optional<V> content;
 
     public Document(IdentifierGenerator<U, T> documentIdGenerator) {
         this.id = documentIdGenerator.generateUnique();
@@ -18,11 +18,11 @@ public abstract class Document<T, U extends DocumentIdentifier<T>> {
         return this.id;
     }
 
-    public Optional<DocumentContent> getContent() {
+    public Optional<V> getContent() {
         return this.content;
     }
 
-    public void setContent(Optional<DocumentContent> content) {
+    public void setContent(Optional<V> content) {
         this.content = content;
     }
 }
