@@ -8,6 +8,11 @@ import com.untitled.project.core.identifier.generator.IdentifierGenerator;
 public abstract class Document<T, U extends DocumentIdentifier<T>, V extends DocumentContent> {
     private final U id;
     private Optional<V> content;
+    
+    public Document(U id, V content) {
+        this.id = id;
+        this.content = Optional.ofNullable(content);
+    }
 
     public Document(IdentifierGenerator<U, T> documentIdGenerator) {
         this.id = documentIdGenerator.generateUnique();

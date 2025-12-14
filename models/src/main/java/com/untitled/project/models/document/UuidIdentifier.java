@@ -21,4 +21,18 @@ public class UuidIdentifier implements DocumentIdentifier<UUID>, SnapshotIdentif
     public String rawString() {
         return this.id.toString();
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        
+        UuidIdentifier that = (UuidIdentifier) obj;
+        return id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id.hashCode();
+    }
 }

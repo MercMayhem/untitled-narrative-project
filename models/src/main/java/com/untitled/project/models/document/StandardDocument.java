@@ -7,6 +7,12 @@ import com.untitled.project.core.Document;
 
 public class StandardDocument extends Document<UUID, UuidIdentifier, StandardDocumentContent> {
 
+    public StandardDocument(UUID id, String content) {
+        UuidIdentifier identifier = new UuidIdentifier(id);
+        StandardDocumentContent documentContent = new StandardDocumentContent(content);
+        super(identifier, documentContent);
+    }
+
     public StandardDocument(){
         UuidIdentifierGenerator uuidIdentifierGenerator = new UuidIdentifierGenerator();
         super(uuidIdentifierGenerator);
