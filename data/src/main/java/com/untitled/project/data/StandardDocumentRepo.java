@@ -4,19 +4,18 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
 import com.untitled.project.core.Document;
-import com.untitled.project.core.DocumentContent;
-import com.untitled.project.core.identifier.DocumentIdentifier;
 import com.untitled.project.core.repo.DocumentRepo;
 import com.untitled.project.models.document.StandardDocument;
+import com.untitled.project.models.document.StandardDocumentContent;
+import com.untitled.project.models.document.UuidIdentifier;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
-public class StandardDocumentRepo<U, V extends DocumentIdentifier<U>, W extends DocumentContent> implements DocumentRepo<U, V, W> {
+public class StandardDocumentRepo implements DocumentRepo<UUID, UuidIdentifier, StandardDocumentContent> {
     private static volatile HikariDataSource db;
     
     public StandardDocumentRepo(HikariConfig cfg) {
@@ -40,13 +39,13 @@ public class StandardDocumentRepo<U, V extends DocumentIdentifier<U>, W extends 
     }
 
     @Override
-    public void deleteDocument(V id) {
+    public void deleteDocument(UuidIdentifier id) {
         // TODO Auto-generated method stub
         
     }
 
     @Override
-    public StandardDocument getDocumentById(V id) throws SQLException{
+    public StandardDocument getDocumentById(UuidIdentifier id) throws SQLException{
         String getDocumentSql = "SELECT * FROM document WHERE internal_id = ?";
 
         StandardDocumentRecord documentModel = new StandardDocumentRecord();
@@ -67,26 +66,26 @@ public class StandardDocumentRepo<U, V extends DocumentIdentifier<U>, W extends 
     }
 
     @Override
-    public void linkDocument(V document, V linkDocument) {
+    public void linkDocument(UuidIdentifier document, UuidIdentifier linkDocument) {
         // TODO Auto-generated method stub
         
     }
 
     @Override
-    public void upsertDocument(Document<U, V, W> document) throws SQLException {
+    public void upsertDocument(Document<UUID, UuidIdentifier, StandardDocumentContent> document) throws SQLException {
         String insertDocumentSql = 
             "INSERT INTO document(content, internal_id) VALUES (?, ?)"
             + " ON CONFLICT DO UPDATE SET content = EXCLUDED.content";
 
         try (PreparedStatement stmt = StandardDocumentRepo.ds().getConnection().prepareStatement(insertDocumentSql)) {
-            stmt.setString(1, document.getContent().orElse(null).rawString());
+            stmt.setString(1, document.getContent().map(StandardDocumentContent::rawString).orElse(null));
             stmt.setString(2, document.getId().rawString());
             stmt.executeUpdate();
         }
     }
 
     @Override
-    public void unlinkDocument(V document, V linkDocument) {
+    public void unlinkDocument(UuidIdentifier document, UuidIdentifier linkDocument) {
         // TODO Auto-generated method stub
         
     }
