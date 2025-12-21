@@ -57,6 +57,35 @@
           <artifactId>maven-project-info-reports-plugin</artifactId>
           <version>3.0.0</version>
         </plugin>
+        <plugin>
+          <groupId>org.flywaydb</groupId>
+          <artifactId>flyway-maven-plugin</artifactId>
+          <version>11.19.0</version>
+          <configuration>
+            <url>${env.DATABASE_URL}</url>
+            <user>${env.DATABASE_USERNAME}</user>
+            <password>${env.DATABASE_PASSWORD}</password>
+          </configuration>
+          <dependencies>
+            <dependency>
+              <groupId>org.flywaydb</groupId>
+              <artifactId>flyway-database-postgresql</artifactId>
+              <version>11.17.0</version>
+            </dependency>
+                          
+            <dependency>
+              <groupId>org.flywaydb</groupId>
+              <artifactId>flyway-core</artifactId>
+              <version>11.17.0</version>
+            </dependency>
+                          
+            <dependency>
+              <groupId>org.postgresql</groupId>
+              <artifactId>postgresql</artifactId>
+              <version>42.7.8</version>
+            </dependency>
+          </dependencies>
+        </plugin>
       </plugins>
     </pluginManagement>
   </build>

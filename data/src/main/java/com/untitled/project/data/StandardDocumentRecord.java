@@ -4,27 +4,18 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.untitled.project.models.document.StandardDocument;
-import com.untitled.project.models.port.StandardDocumentMapper;
 
-
-public class StandardDocumentRecord implements StandardDocumentMapper<StandardDocumentRecord> {
+public class StandardDocumentRecord {
     UUID id;
-    String content;
     Optional<Instant> createdAt;
     Optional<Instant> updatedAt;
+    Long version;
 
     public UUID getId() {
         return id;
     }
     public void setId(UUID id) {
         this.id = id;
-    }
-    public String getContent() {
-        return content;
-    }
-    public void setContent(String content) {
-        this.content = content;
     }
     public Optional<Instant> getCreatedAt() {
         return createdAt;
@@ -38,15 +29,11 @@ public class StandardDocumentRecord implements StandardDocumentMapper<StandardDo
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = Optional.ofNullable(updatedAt);
     }
-    
-    @Override
-    public StandardDocumentRecord fromStandardDocument() {
-        // TODO Auto-generated method stub
-        return null;
+
+    public Long getVersion() {
+        return version;
     }
-    @Override
-    public StandardDocument toStandardDocument() {
-        StandardDocument standardDocument = new StandardDocument(this.id, this.content);
-        return standardDocument;
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

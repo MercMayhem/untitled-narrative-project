@@ -7,11 +7,18 @@ import com.untitled.project.core.identifier.SnapshotIdentifier;
 
 public class UuidIdentifier implements DocumentIdentifier<UUID>, SnapshotIdentifier<UUID> {
     final UUID id;
+    Long version;
+
+    public UuidIdentifier(UUID id, Long version) {
+        this.id = id;
+        this.version = version;
+    }
 
     public UuidIdentifier(UUID id) {
         this.id = id;
+        this.version = Long.valueOf(1);
     }
-
+         
     @Override
     public UUID value() {
         return this.id;
@@ -34,5 +41,13 @@ public class UuidIdentifier implements DocumentIdentifier<UUID>, SnapshotIdentif
     @Override
     public int hashCode() {
         return id.hashCode();
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }
