@@ -4,6 +4,9 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.untitled.project.models.document.StandardDocumentContentEntry;
+import com.untitled.project.models.document.UuidIdentifier;
+
 public class StandardDocumentContentRecord {
     UUID id;
     UUID documentId;
@@ -16,6 +19,13 @@ public class StandardDocumentContentRecord {
     StandardDocumentContentRecord(){
         this.createdAt = Optional.of(Instant.now());
         this.updatedAt = Optional.of(Instant.now());
+    }
+
+    StandardDocumentContentRecord(UuidIdentifier contentIdentifier, StandardDocumentContentEntry entry, UuidIdentifier documentIdentifier){
+        this.id = contentIdentifier.value();
+        this.documentId = documentIdentifier.value();
+        this.title = entry.getTitle();
+        this.content = entry.getContent();
     }
 
     public UUID getId() {

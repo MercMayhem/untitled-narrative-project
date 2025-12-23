@@ -1,5 +1,6 @@
 package com.untitled.project.data;
 
+import java.io.Closeable;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -19,7 +20,7 @@ import com.untitled.project.models.document.UuidIdentifier;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
-public class StandardDocumentRepo {
+public class StandardDocumentRepo implements Closeable {
     private static volatile HikariDataSource db;
     
     public StandardDocumentRepo(HikariConfig cfg) {
@@ -38,7 +39,7 @@ public class StandardDocumentRepo {
         }
     }
 
-    static HikariDataSource ds() {
+    private static HikariDataSource ds() {
         return db;
     }
 
@@ -57,45 +58,27 @@ public class StandardDocumentRepo {
         
     }
 
-    private boolean insertDocumentIfNew(Document<UUID, UuidIdentifier, StandardDocumentContent> document, Connection connection) throws SQLException {
+    private void insertDocument(Document<UUID, UuidIdentifier, StandardDocumentContent> document, Connection connection) throws SQLException {
         String insertDocumentSql = 
-            "INSERT INTO document(id) VALUES (?)"
-            + " ON CONFLICT DO NOTHING";
+            "INSERT INTO document(id) VALUES (?)";
         
-        int inserted;
         try (PreparedStatement stmt = connection.prepareStatement(insertDocumentSql)) {
             stmt.setObject(1, document.getId().value(), Types.OTHER);
-            inserted = stmt.executeUpdate();
+            stmt.executeUpdate();
         }
 
-        if (inserted == 0) {
-            String insertDocumentContentSql = 
-                "INSERT INTO document_content(id, document_id, title, content)"
-                + " VALUES (?, ?, ?, ?)";
+        if (document.getContent().isPresent()) {
+            Vector<StandardDocumentContentRecord> contentRecords = document.getContent().get()
+                .getContent()
+                .entrySet()
+                .stream()
+                .map(entry -> {
+                    return new StandardDocumentContentRecord(entry.getKey(), entry.getValue(), document.getId());
+                })
+                .collect(Collectors.toCollection(Vector::new));
 
-            
-            if (document.getContent().isPresent()) {
-                StandardDocumentContent content = document.getContent().get();
-
-                try (PreparedStatement stmt = connection.prepareStatement(insertDocumentContentSql)){
-                    for (Map.Entry<UuidIdentifier, StandardDocumentContentEntry> entry : content.getContent().entrySet()) {
-                        UuidIdentifier id = entry.getKey();
-                        StandardDocumentContentEntry contentData = entry.getValue();
-                        stmt.setObject(1, id.value(), Types.OTHER);
-                        stmt.setObject(2, document.getId().value(), Types.OTHER);
-                        stmt.setString(3, contentData.getTitle());
-                        stmt.setString(4, contentData.getContent());
-                        stmt.addBatch();
-                    }
-                    
-                    stmt.executeBatch();
-                }
-            }
-
-            return true;
+            insertDocumentContent(contentRecords, connection);
         }
-
-        return false;
     }
 
     private class UpdateOrReturnExistingReturnValues {
@@ -123,7 +106,7 @@ public class StandardDocumentRepo {
             + " title = ?,"
             + " content = ?,"
             + " updated_at =  now()"
-            + " WHERE id = ? AND version = ?"
+            + " WHERE id = ? AND version = ? - 1"
             + " RETURNING *, true as updated";
 
         String updateOrReturnExistingVersionSql = 
@@ -166,7 +149,7 @@ public class StandardDocumentRepo {
                     UuidIdentifier retrievedIdentifier = new UuidIdentifier(retrievedId, retrievedVersion);
                     StandardDocumentContentEntry standardDocumentContent = new StandardDocumentContentEntry(retrievedTitle, retrievedContent);
                     
-                    if (!updated) {
+                    if (!updated && retrievedVersion >= id.getVersion()) {
                         conflictDocumentContent.put(retrievedIdentifier, standardDocumentContent);
                     }
                 }
@@ -176,19 +159,20 @@ public class StandardDocumentRepo {
         return new UpdateOrReturnExistingReturnValues(conflictDocumentContent, createDocumentContent);
     }
 
-    private void insertDocumentContent(UuidIdentifier documentId, Vector<StandardDocumentContentRecord> createDocumentContent, Connection connection) throws SQLException {
-        // TODO: this is repeated
+    private void insertDocumentContent(Vector<StandardDocumentContentRecord> createDocumentContent, Connection connection) throws SQLException {
         String insertDocumentContentSql = 
-            "INSERT INTO document_content(id, document_id, title, content)"
-            + " VALUES (?, ?, ?, ?)"
+            "INSERT INTO document_content(id, document_id, title, content, created_at, updated_at)"
+            + " VALUES (?, ?, ?, ?, ?, ?)"
             + " ON CONFLICT DO NOTHING";
 
         try (PreparedStatement stmt = connection.prepareStatement(insertDocumentContentSql)){
             for (StandardDocumentContentRecord entry : createDocumentContent) {
                 stmt.setObject(1, entry.getId(), Types.OTHER);
-                stmt.setObject(2, documentId.value(), Types.OTHER);
+                stmt.setObject(2, entry.getDocumentId(), Types.OTHER);
                 stmt.setString(3, entry.getTitle());
                 stmt.setString(4, entry.getContent());
+                stmt.setObject(5, entry.getCreatedAt());
+                stmt.setObject(6, entry.getUpdatedAt());
                 stmt.addBatch();
             }
             
@@ -219,25 +203,16 @@ public class StandardDocumentRepo {
         }
     }
 
-    public Optional<HashMap<UuidIdentifier, StandardDocumentContentEntry>> upsertDocument(Document<UUID, UuidIdentifier, StandardDocumentContent> document) throws SQLException {
+    public Optional<HashMap<UuidIdentifier, StandardDocumentContentEntry>> insertDocument(Document<UUID, UuidIdentifier, StandardDocumentContent> document) throws SQLException {
         HashMap<UuidIdentifier, StandardDocumentContentEntry> conflictDocumentContent = null;
 
         Connection connection = null;
         try {
-            connection = db.getConnection();
+            connection = StandardDocumentRepo.ds().getConnection();
             connection.setAutoCommit(false);
             connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
-            boolean inserted = insertDocumentIfNew(document, connection);
-            if (!inserted && document.getContent().isPresent()) {
-                UpdateOrReturnExistingReturnValues updatedReturn = updateOrReturnExisting(document, connection);
-
-                conflictDocumentContent = updatedReturn.conflictDocumentContent;
-                insertDocumentContent(document.getId(), updatedReturn.createDocumentContent, connection);
-
-                StandardDocumentContent content = document.getContent().get();
-                deleteExcluding(content, document.getId(), connection);
-            }
+            insertDocument(document, connection);
 
             connection.commit();
         } catch (SQLException e) {
@@ -254,5 +229,10 @@ public class StandardDocumentRepo {
     public void unlinkDocument(UuidIdentifier document, UuidIdentifier linkDocument, Connection connection) {
         // TODO Auto-generated method stub
         
+    }
+
+    @Override
+    public void close() {
+        StandardDocumentRepo.ds().close();
     }
 }

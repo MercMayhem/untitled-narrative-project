@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -16,8 +17,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.untitled.project.models.document.StandardDocument;
+import com.untitled.project.models.document.StandardDocumentContentEntry;
 import com.untitled.project.models.document.UuidIdentifier;
 import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 @Testcontainers
 class StandardDocumentRepoTest {
@@ -29,6 +32,7 @@ class StandardDocumentRepoTest {
             .withPassword("test");
     
     private static StandardDocumentRepo repo;
+    private static HikariDataSource testPool;
     
     @BeforeAll
     static void setupDatabase() throws SQLException {
@@ -41,6 +45,7 @@ class StandardDocumentRepoTest {
         
         // Initialize repository
         repo = new StandardDocumentRepo(config);
+        testPool = new HikariDataSource(config);
         
         // Run Flyway migrations
         Flyway flyway = Flyway.configure()
@@ -54,7 +59,7 @@ class StandardDocumentRepoTest {
     @BeforeEach
     void cleanDatabase() throws SQLException {
         // Clear table before each test
-        try (Connection conn = repo.ds().getConnection();
+        try (Connection conn = testPool.getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute("TRUNCATE TABLE document CASCADE");
         }
@@ -62,19 +67,22 @@ class StandardDocumentRepoTest {
     
     @AfterAll
     static void tearDown() {
-        if (repo != null && repo.ds() != null) {
-            repo.ds().close();
+        if (testPool != null) {
+            testPool.close();
         }
+
+        repo.close();
     }
     
     @Test
     void testUpsertNewDocument() throws SQLException {
         // Arrange
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
         StandardDocument document = new StandardDocument();
         UuidIdentifier identifier = document.getId();
         
         // Act
-        repo.upsertDocument(document);
+        repo.insertDocument(document);
         
         // Assert
         // StandardDocument retrieved = repo.getDocumentById(identifier);
