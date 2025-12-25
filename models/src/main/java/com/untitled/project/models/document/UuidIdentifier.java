@@ -50,4 +50,9 @@ public class UuidIdentifier implements DocumentIdentifier<UUID>, SnapshotIdentif
     public void setVersion(Long version) {
         this.version = version;
     }
+
+    @Override
+    public String toString() {
+        return "UuidIdentifier [id=" + id + ", version=" + version + ", hashCode()=" + hashCode() + "]";
+    }
 }

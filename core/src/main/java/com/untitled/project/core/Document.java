@@ -19,6 +19,11 @@ public abstract class Document<T, U extends DocumentIdentifier<T>, V extends Doc
         this.content = Optional.empty();
     }
 
+    public Document(IdentifierGenerator<U, T> documentIdGenerator, V content) {
+        this.id = documentIdGenerator.generateUnique();
+        this.content = Optional.ofNullable(content);
+    }
+
     public final U getId() {
         return this.id;
     }

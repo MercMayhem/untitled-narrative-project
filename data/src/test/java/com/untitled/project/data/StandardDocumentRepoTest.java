@@ -6,6 +6,8 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashMap;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,8 +19,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.untitled.project.models.document.StandardDocument;
+import com.untitled.project.models.document.StandardDocumentContent;
 import com.untitled.project.models.document.StandardDocumentContentEntry;
 import com.untitled.project.models.document.UuidIdentifier;
+import com.untitled.project.models.document.UuidIdentifierGenerator;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -78,17 +82,31 @@ class StandardDocumentRepoTest {
     void testUpsertNewDocument() throws SQLException {
         // Arrange
         HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
-        StandardDocument document = new StandardDocument();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        content.put(identifierGenerator.generateUnique(), new StandardDocumentContentEntry("title1", "content1"));
+        content.put(identifierGenerator.generateUnique(), new StandardDocumentContentEntry("title2", "content2"));
+
+        StandardDocument document = new StandardDocument(content);
         UuidIdentifier identifier = document.getId();
         
         // Act
         repo.insertDocument(document);
         
         // Assert
-        // StandardDocument retrieved = repo.getDocumentById(identifier);
-        // assertNotNull(retrieved);
-        // assertEquals(identifier.value(), retrieved.getId().value());
-        // assertTrue(retrieved.getContent().isPresent());
+        Optional<StandardDocument> retrievedOptional = repo.getDocumentById(identifier);
+        assert(retrievedOptional.isPresent());
+        StandardDocument retrieved = retrievedOptional.get();
+        assertEquals(identifier.value(), retrieved.getId().value());
+        assertTrue(retrieved.getContent().isPresent());
+
+        StandardDocumentContent retrievedContent = retrieved.getContent().get();
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> retrievedContentEntries = retrievedContent.getContent();
+
+        System.out.println("Retrieved: " + retrievedContentEntries);
+        System.out.println("Created: " + content);
+
+        assert(content.equals(retrievedContentEntries));
     }
     
     // @Test

@@ -14,10 +14,10 @@ public class StandardDocument extends Document<UUID, UuidIdentifier, StandardDoc
         super(identifier, documentContent);
     }
 
-    public StandardDocument(UUID id, HashMap<UuidIdentifier, StandardDocumentContentEntry> content) {
-        UuidIdentifier identifier = new UuidIdentifier(id);
+    public StandardDocument(HashMap<UuidIdentifier, StandardDocumentContentEntry> content) {
+        UuidIdentifierGenerator uuidIdentifierGenerator = new UuidIdentifierGenerator();
         StandardDocumentContent documentContent = new StandardDocumentContent(content);
-        super(identifier, documentContent);
+        super(uuidIdentifierGenerator, documentContent);
     }
 
     public StandardDocument(){

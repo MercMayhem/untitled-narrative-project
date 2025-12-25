@@ -16,3 +16,5 @@ CREATE TABLE document_content(
 
     FOREIGN KEY(document_id) REFERENCES document(id) ON DELETE CASCADE
 );
+
+CREATE INDEX idx_document_id ON document_content(document_id);

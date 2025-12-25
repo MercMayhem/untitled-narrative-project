@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import com.untitled.project.core.Document;
 import com.untitled.project.models.document.StandardDocumentContentEntry;
+import com.untitled.project.models.document.StandardDocument;
 import com.untitled.project.models.document.StandardDocumentContent;
 import com.untitled.project.models.document.UuidIdentifier;
 import com.zaxxer.hikari.HikariConfig;
@@ -48,9 +49,30 @@ public class StandardDocumentRepo implements Closeable {
         
     }
 
-    public StandardDocumentRecord getDocumentById(UuidIdentifier id) throws SQLException{
-        // TODO: change implementation
-        return null;
+    public Optional<StandardDocument> getDocumentById(UuidIdentifier id) throws SQLException{
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Optional<StandardDocumentRecord> documentRecordOptional = StandardDocumentRecord.get(id.value(), connection);
+            if (documentRecordOptional.isEmpty()) {
+                return Optional.ofNullable(null);
+            }
+
+            StandardDocumentRecord documentRecord = documentRecordOptional.get();
+            Vector<StandardDocumentContentRecord> documentContentRecords = StandardDocumentContentRecord.get(id.value(), connection);
+
+            connection.commit();
+            StandardDocument document = new RecordToStandardDocumentConverter(documentRecord, documentContentRecords).toStandardDocument();
+            return Optional.ofNullable(document);
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.close();
+        }
     }
 
     public void linkDocument(UuidIdentifier document, UuidIdentifier linkDocument) {
@@ -59,6 +81,7 @@ public class StandardDocumentRepo implements Closeable {
     }
 
     private void insertDocument(Document<UUID, UuidIdentifier, StandardDocumentContent> document, Connection connection) throws SQLException {
+        // TODO: implement using the converter class
         String insertDocumentSql = 
             "INSERT INTO document(id) VALUES (?)";
         
