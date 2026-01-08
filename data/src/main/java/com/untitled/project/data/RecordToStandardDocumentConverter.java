@@ -1,6 +1,5 @@
 package com.untitled.project.data;
 
-import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.Vector;
@@ -8,7 +7,6 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.untitled.project.core.DocumentContent;
 import com.untitled.project.models.document.StandardDocument;
 import com.untitled.project.models.document.StandardDocumentContentEntry;
 import com.untitled.project.models.document.StandardDocumentConverter;
