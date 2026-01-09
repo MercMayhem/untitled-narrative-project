@@ -33,6 +33,7 @@ public class StandardDocumentContentRecord {
         this.documentId = documentIdentifier.value();
         this.title = entry.getTitle();
         this.content = entry.getContent();
+        this.version = contentIdentifier.getVersion();
     }
 
     public UUID getId() {

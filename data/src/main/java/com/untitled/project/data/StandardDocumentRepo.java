@@ -3,15 +3,22 @@ package com.untitled.project.data;
 import java.io.Closeable;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.stream.Collectors;
 
 import com.untitled.project.core.Document;
+import com.untitled.project.data.update.DeleteStandardDocumentContentResult;
+import com.untitled.project.data.update.InsertStandardDocumentContentResult;
+import com.untitled.project.data.update.StandardDocumentUpdateResult;
+import com.untitled.project.data.update.UpdateStandardDocumentContentResult;
 import com.untitled.project.models.document.StandardDocumentContentEntry;
 import com.untitled.project.models.document.StandardDocument;
 import com.untitled.project.models.document.StandardDocumentContent;
@@ -107,113 +114,147 @@ public class StandardDocumentRepo implements Closeable {
         }
     }
 
-    // private class UpdateOrReturnExistingReturnValues {
-    //     public HashMap<UuidIdentifier, StandardDocumentContentEntry> conflictDocumentContent;
-    //     public Vector<StandardDocumentContentRecord> createDocumentContent;
-        
-    //     public UpdateOrReturnExistingReturnValues(
-    //         HashMap<UuidIdentifier, StandardDocumentContentEntry> conflictDocumentContent,
-    //         Vector<StandardDocumentContentRecord> createDocumentContent
-    //     ) {
-    //         this.conflictDocumentContent = conflictDocumentContent;
-    //         this.createDocumentContent = createDocumentContent;
-    //     } 
-    // }
+    private InsertStandardDocumentContentResult insertDocumentContent(Vector<StandardDocumentContentRecord> records, Connection connection) throws SQLException {
+        String sql =
+            "INSERT INTO document_content (" +
+            "id, document_id, title, content, created_at, updated_at" +
+            ") " +
+            "SELECT * FROM UNNEST(" +
+            "?::uuid[], " +
+            "?::uuid[], " +
+            "?::text[], " +
+            "?::text[], " +
+            "?::timestamptz[], " +
+            "?::timestamptz[]" +
+            ") " +
+            "ON CONFLICT DO NOTHING " +
+            "RETURNING id";
 
-    // private UpdateOrReturnExistingReturnValues updateOrReturnExisting(Document<UUID, UuidIdentifier, StandardDocumentContent> document, Connection connection) throws SQLException {
-    //     HashMap<UuidIdentifier, StandardDocumentContentEntry> conflictDocumentContent = new HashMap<>();
-    //     Vector<StandardDocumentContentRecord> createDocumentContent = new Vector<>();
-    //     StandardDocumentContent content = document.getContent().get();
+        UUID[] ids = new UUID[records.size()];
+        UUID[] documentIds = new UUID[records.size()];
+        String[] titles = new String[records.size()];
+        String[] contents = new String[records.size()];
+        Timestamp[] createdAts = new Timestamp[records.size()];
+        Timestamp[] updatedAts = new Timestamp[records.size()];
 
-    //     String updateDocumentContentSql = 
-    //         " UPDATE document_content"
-    //         + " SET"
-    //         + " version = version + 1,"
-    //         + " title = ?,"
-    //         + " content = ?,"
-    //         + " updated_at =  now()"
-    //         + " WHERE id = ? AND version = ? - 1"
-    //         + " RETURNING *, true as updated";
-
-    //     String updateOrReturnExistingVersionSql = 
-    //         "WITH updated AS (" + updateDocumentContentSql + ")"
-    //         + " SELECT *"
-    //         + " FROM updated"
-    //         + " UNION ALL"
-    //         + " SELECT *, false as updated"
-    //         + " FROM document_content"
-    //         + " WHERE id = ?"
-    //         + " AND NOT EXISTS(SELECT 1 FROM updated)";
-
-    //     try (PreparedStatement stmt = connection.prepareStatement(updateOrReturnExistingVersionSql)){
-    //         for (Map.Entry<UuidIdentifier, StandardDocumentContentEntry> entry : content.getContent().entrySet()) {
-    //             UuidIdentifier id = entry.getKey();
-    //             StandardDocumentContentEntry contentData = entry.getValue();
-    //             stmt.setString(1, contentData.getTitle());
-    //             stmt.setString(2, contentData.getContent());
-    //             stmt.setObject(3, id.value(), Types.OTHER);
-    //             stmt.setLong(4, id.getVersion());
-    //             stmt.setObject(5, id.value(), Types.OTHER);
-
-    //             ResultSet rs = stmt.executeQuery();
-    //             if (!rs.next()) {
-    //                 StandardDocumentContentRecord record = new StandardDocumentContentRecord();
-
-    //                 record.setId(id.value());
-    //                 record.setDocumentId(document.getId().value());
-    //                 record.setTitle(contentData.getTitle());
-    //                 record.setContent(contentData.getContent());
-                    
-    //                 createDocumentContent.add(record);
-    //             } else {
-    //                 UUID retrievedId = rs.getObject("id", UUID.class);
-    //                 Long retrievedVersion = rs.getLong("version");
-    //                 String retrievedTitle = rs.getString("title");
-    //                 String retrievedContent = rs.getString("content");
-    //                 boolean updated = rs.getBoolean("updated");
-
-    //                 UuidIdentifier retrievedIdentifier = new UuidIdentifier(retrievedId, retrievedVersion);
-    //                 StandardDocumentContentEntry standardDocumentContent = new StandardDocumentContentEntry(retrievedTitle, retrievedContent);
-                    
-    //                 if (!updated && retrievedVersion >= id.getVersion()) {
-    //                     conflictDocumentContent.put(retrievedIdentifier, standardDocumentContent);
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     return new UpdateOrReturnExistingReturnValues(conflictDocumentContent, createDocumentContent);
-    // }
-
-    private void insertDocumentContent(Vector<StandardDocumentContentRecord> createDocumentContent, Connection connection) throws SQLException {
-        String insertDocumentContentSql = 
-            "INSERT INTO document_content(id, document_id, title, content, created_at, updated_at)"
-            + " VALUES (?, ?, ?, ?, ?, ?)"
-            + " ON CONFLICT DO NOTHING";
-
-        try (PreparedStatement stmt = connection.prepareStatement(insertDocumentContentSql)){
-            for (StandardDocumentContentRecord entry : createDocumentContent) {
-                stmt.setObject(1, entry.getId(), Types.OTHER);
-                stmt.setObject(2, entry.getDocumentId(), Types.OTHER);
-                stmt.setString(3, entry.getTitle());
-                stmt.setString(4, entry.getContent());
-                stmt.setObject(5, entry.getCreatedAt());
-                stmt.setObject(6, entry.getUpdatedAt());
-                stmt.addBatch();
-            }
-            
-            stmt.executeBatch();
+        for (int i = 0; i < records.size(); i++) {
+            StandardDocumentContentRecord r = records.get(i);
+            ids[i] = r.getId();
+            documentIds[i] = r.getDocumentId();
+            titles[i] = r.getTitle();
+            contents[i] = r.getContent();
+            createdAts[i] = r.getCreatedAt().map(Timestamp::from).orElse(null);
+            updatedAts[i] = r.getUpdatedAt().map(Timestamp::from).orElse(null);
         }
+
+        Vector<StandardDocumentContentRecord> created = new Vector<>();
+
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+
+            ps.setArray(1, connection.createArrayOf("uuid", ids));
+            ps.setArray(2, connection.createArrayOf("uuid", documentIds));
+            ps.setArray(3, connection.createArrayOf("text", titles));
+            ps.setArray(4, connection.createArrayOf("text", contents));
+            ps.setArray(5, connection.createArrayOf("timestamptz", createdAts));
+            ps.setArray(6, connection.createArrayOf("timestamptz", updatedAts));
+
+            Map<UUID, StandardDocumentContentRecord> byId = new HashMap<>(records.size());
+            for (StandardDocumentContentRecord r : records) {
+                byId.put(r.getId(), r);
+            }
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    UUID id = rs.getObject("id", UUID.class);
+                    created.add(byId.get(id));
+                }
+            }
+        }
+
+        return new InsertStandardDocumentContentResult(created.size() != records.size(), created);
+    }
+    private UpdateStandardDocumentContentResult updateDocumentContent(Vector<StandardDocumentContentRecord> records,Connection connection) throws SQLException {
+
+        if (records.isEmpty()) {
+            return new UpdateStandardDocumentContentResult(false, new Vector<>());
+        }
+
+        String sql =
+            "UPDATE document_content dc SET " +
+            "title = u.title, " +
+            "content = u.content, " +
+            "updated_at = u.updated_at, " +
+            "version = dc.version + 1 " +
+            "FROM ( " +
+            "SELECT * FROM UNNEST( " +
+            "?::uuid[], " +
+            "?::text[], " +
+            "?::text[], " +
+            "?::timestamptz[], " +
+            "?::bigint[] " +
+            ") ) AS u(id, title, content, updated_at, version) " +
+            "WHERE dc.id = u.id AND dc.version = u.version " +
+            "RETURNING dc.id";
+
+        UUID[] ids = new UUID[records.size()];
+        String[] titles = new String[records.size()];
+        String[] contents = new String[records.size()];
+        Timestamp[] updatedAts = new Timestamp[records.size()];
+        Long[] versions = new Long[records.size()];
+
+        for (int i = 0; i < records.size(); i++) {
+            StandardDocumentContentRecord r = records.get(i);
+            ids[i] = r.getId();
+            titles[i] = r.getTitle();
+            contents[i] = r.getContent();
+            updatedAts[i] = r.getUpdatedAt().map(Timestamp::from).orElse(null);
+            versions[i] = r.getVersion();
+        }
+
+        Map<UUID, StandardDocumentContentRecord> byId = new HashMap<>(records.size());
+        for (StandardDocumentContentRecord r : records) {
+            byId.put(r.getId(), r);
+        }
+
+        Vector<StandardDocumentContentRecord> updated = new Vector<>();
+
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+
+            ps.setArray(1, connection.createArrayOf("uuid", ids));
+            ps.setArray(2, connection.createArrayOf("text", titles));
+            ps.setArray(3, connection.createArrayOf("text", contents));
+            ps.setArray(4, connection.createArrayOf("timestamptz", updatedAts));
+            ps.setArray(5, connection.createArrayOf("bigint", versions));
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    UUID id = rs.getObject("id", UUID.class);
+                    updated.add(byId.get(id));
+                }
+            }
+        }
+
+        boolean optimisticLockingError =
+            updated.size() != records.size();
+
+        return new UpdateStandardDocumentContentResult(
+            optimisticLockingError,
+            updated
+        );
     }
 
-    private void deleteContentById(UuidIdentifier documentContentIdentifier, UuidIdentifier documentIdentifier, Connection connection) throws SQLException {
+
+    private DeleteStandardDocumentContentResult deleteContentById(UuidIdentifier documentContentIdentifier, UuidIdentifier documentIdentifier, Connection connection) throws SQLException {
         String deleteContentSql =
-            "DELETE FROM document_content WHERE document_id = ? AND id = ?";
+            "DELETE FROM document_content WHERE document_id = ? AND id = ? AND version = ?";
 
         try (PreparedStatement ps = connection.prepareStatement(deleteContentSql)) {
             ps.setObject(1, documentIdentifier.value(), Types.OTHER);
             ps.setObject(2, documentContentIdentifier.value(), Types.OTHER);
-            ps.executeUpdate();
+            ps.setLong(4, documentContentIdentifier.getVersion());
+            int deletedCount = ps.executeUpdate();
+
+            return new DeleteStandardDocumentContentResult(deletedCount == 0);
         }
     }
 
@@ -242,13 +283,15 @@ public class StandardDocumentRepo implements Closeable {
         return Optional.ofNullable(conflictDocumentContent);
     }
 
-    public void updateDocument(StandardDocumentUpdate documentUpdate) throws SQLException {
+    public StandardDocumentUpdateResult updateDocument(StandardDocumentUpdate documentUpdate) throws SQLException {
 
         Connection connection = null;
         try {
             connection = StandardDocumentRepo.ds().getConnection();
             connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
+            StandardDocumentUpdateResult res = null;
             switch (documentUpdate.getUpdateType()) {
                 case InsertDocumentContent insertContent -> {
                     // TODO: use converter class to convert from StandardDocumentContent to Vector<StandardDocumentContentRecord>
@@ -262,19 +305,34 @@ public class StandardDocumentRepo implements Closeable {
                         })
                         .collect(Collectors.toCollection(Vector::new));
 
-                    insertDocumentContent(contentRecords, connection);
+                    InsertStandardDocumentContentResult result = insertDocumentContent(contentRecords, connection);
+                    res = new StandardDocumentUpdateResult(result);
                 }
 
                 case UpdateDocumentContent updateDocumentContent -> {
-                    
+                    // TODO: use converter class to convert from StandardDocumentContent to Vector<StandardDocumentContentRecord>
+                    Vector<StandardDocumentContentRecord> contentRecords = updateDocumentContent
+                        .updateDocumentContent()
+                        .getContent()
+                        .entrySet()
+                        .stream()
+                        .map(entry -> {
+                            return new StandardDocumentContentRecord(entry.getKey(), entry.getValue(), documentUpdate.getDocumentIdentifier());
+                        })
+                        .collect(Collectors.toCollection(Vector::new));
+
+                    UpdateStandardDocumentContentResult result = updateDocumentContent(contentRecords, connection);
+                    res = new StandardDocumentUpdateResult(result);
                 }
 
                 case DeleteDocumentContent deleteDocumentContent -> {
-                    deleteContentById(deleteDocumentContent.id(), documentUpdate.getDocumentIdentifier(), connection);
+                    DeleteStandardDocumentContentResult result = deleteContentById(deleteDocumentContent.id(), documentUpdate.getDocumentIdentifier(), connection);
+                    res = new StandardDocumentUpdateResult(result);
                 }
             }
 
             connection.commit();
+            return res;
         } catch (SQLException e) {
             connection.rollback();
             throw e;
