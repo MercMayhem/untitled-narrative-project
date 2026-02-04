@@ -4,5 +4,6 @@ public sealed interface UpdateDocumentResult permits
     InsertStandardDocumentContentResult,
     DeleteStandardDocumentContentResult,
     UpdateStandardDocumentContentResult {
-    
+
+
 }

@@ -7,7 +7,12 @@ import com.untitled.project.models.document.UuidIdentifier;
 public class StandardDocumentUpdate extends DocumentUpdate {
     UpdateType updateType;
     UuidIdentifier documentIdentifier;
-    
+
+    public StandardDocumentUpdate(UpdateType updateType, UuidIdentifier documentIdentifier) {
+        this.updateType = updateType;
+        this.documentIdentifier = documentIdentifier;
+    }
+
     public UpdateType getUpdateType() {
         return updateType;
     }

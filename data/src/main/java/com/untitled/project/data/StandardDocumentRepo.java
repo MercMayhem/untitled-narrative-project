@@ -199,7 +199,7 @@ public class StandardDocumentRepo implements Closeable {
             "?::timestamptz[], " +
             "?::bigint[] " +
             ") ) AS u(id, title, content, updated_at, version) " +
-            "WHERE dc.id = u.id AND dc.version = u.version " +
+            "WHERE dc.id = u.id AND dc.version = u.version - 1 " +
             "RETURNING dc.id";
 
         UUID[] ids = new UUID[records.size()];
@@ -252,12 +252,12 @@ public class StandardDocumentRepo implements Closeable {
 
     private DeleteStandardDocumentContentResult deleteContentById(UuidIdentifier documentContentIdentifier, UuidIdentifier documentIdentifier, Connection connection) throws SQLException {
         String deleteContentSql =
-            "DELETE FROM document_content WHERE document_id = ? AND id = ? AND version = ?";
+            "DELETE FROM document_content WHERE document_id = ? AND id = ? AND version = ? - 1";
 
         try (PreparedStatement ps = connection.prepareStatement(deleteContentSql)) {
             ps.setObject(1, documentIdentifier.value(), Types.OTHER);
             ps.setObject(2, documentContentIdentifier.value(), Types.OTHER);
-            ps.setLong(4, documentContentIdentifier.getVersion());
+            ps.setLong(3, documentContentIdentifier.getVersion());
             int deletedCount = ps.executeUpdate();
 
             return new DeleteStandardDocumentContentResult(deletedCount == 0);
