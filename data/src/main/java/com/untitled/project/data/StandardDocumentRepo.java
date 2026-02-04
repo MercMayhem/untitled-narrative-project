@@ -1,6 +1,7 @@
 package com.untitled.project.data;
 
 import java.io.Closeable;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -13,6 +14,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.untitled.project.core.Document;
 import com.untitled.project.data.update.DeleteStandardDocumentContentResult;
@@ -117,7 +119,7 @@ public class StandardDocumentRepo implements Closeable {
     private InsertStandardDocumentContentResult insertDocumentContent(Vector<StandardDocumentContentRecord> records, Connection connection) throws SQLException {
         String sql =
             "INSERT INTO document_content (" +
-            "id, document_id, title, content, created_at, updated_at" +
+            "id, document_id, title, content, created_at, updated_at, sort_order" +
             ") " +
             "SELECT * FROM UNNEST(" +
             "?::uuid[], " +
@@ -125,7 +127,8 @@ public class StandardDocumentRepo implements Closeable {
             "?::text[], " +
             "?::text[], " +
             "?::timestamptz[], " +
-            "?::timestamptz[]" +
+            "?::timestamptz[], " +
+            "?::numeric[]" +
             ") " +
             "ON CONFLICT DO NOTHING " +
             "RETURNING id";
@@ -136,6 +139,7 @@ public class StandardDocumentRepo implements Closeable {
         String[] contents = new String[records.size()];
         Timestamp[] createdAts = new Timestamp[records.size()];
         Timestamp[] updatedAts = new Timestamp[records.size()];
+        BigDecimal[] sortOrder = new BigDecimal[records.size()];
 
         for (int i = 0; i < records.size(); i++) {
             StandardDocumentContentRecord r = records.get(i);
@@ -145,6 +149,7 @@ public class StandardDocumentRepo implements Closeable {
             contents[i] = r.getContent();
             createdAts[i] = r.getCreatedAt().map(Timestamp::from).orElse(null);
             updatedAts[i] = r.getUpdatedAt().map(Timestamp::from).orElse(null);
+            sortOrder[i] = r.getOrder();
         }
 
         Vector<StandardDocumentContentRecord> created = new Vector<>();
@@ -157,6 +162,7 @@ public class StandardDocumentRepo implements Closeable {
             ps.setArray(4, connection.createArrayOf("text", contents));
             ps.setArray(5, connection.createArrayOf("timestamptz", createdAts));
             ps.setArray(6, connection.createArrayOf("timestamptz", updatedAts));
+            ps.setArray(7, connection.createArrayOf("numeric", sortOrder));
 
             Map<UUID, StandardDocumentContentRecord> byId = new HashMap<>(records.size());
             for (StandardDocumentContentRecord r : records) {

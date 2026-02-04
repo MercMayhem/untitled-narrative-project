@@ -1,5 +1,6 @@
 package com.untitled.project.data;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -19,6 +20,7 @@ public class StandardDocumentContentRecord {
     UUID documentId;
     String title;
     String content;
+    BigDecimal order;
     Optional<Instant> createdAt;
     Optional<Instant> updatedAt;
     Long version;
@@ -34,6 +36,9 @@ public class StandardDocumentContentRecord {
         this.title = entry.getTitle();
         this.content = entry.getContent();
         this.version = contentIdentifier.getVersion();
+        this.createdAt = Optional.of(Instant.now());
+        this.updatedAt = Optional.of(Instant.now());
+        this.order = entry.getOrder();
     }
 
     public UUID getId() {
@@ -83,7 +88,7 @@ public class StandardDocumentContentRecord {
         Vector<StandardDocumentContentRecord> records = new Vector<>();
 
         String getDocumentContentRecordSql = 
-            "SELECT id, title, content, created_at, updated_at, version FROM document_content WHERE document_id = ?";
+            "SELECT id, title, content, sort_order, created_at, updated_at, version FROM document_content WHERE document_id = ? ORDER BY sort_order";
 
         try (PreparedStatement pstmt = connection.prepareStatement(getDocumentContentRecordSql)) {
             pstmt.setObject(1, documentId, Types.OTHER);
@@ -93,6 +98,7 @@ public class StandardDocumentContentRecord {
                 UUID id = rs.getObject("id", UUID.class);
                 String title = rs.getString("title");
                 String content = rs.getString("content");
+                BigDecimal order = rs.getBigDecimal("sort_order");
                 
                 Timestamp createdAtTimestamp = rs.getObject("created_at", Timestamp.class);
                 Timestamp updatedAtTimestamp = rs.getObject("updated_at", Timestamp.class);
@@ -116,11 +122,20 @@ public class StandardDocumentContentRecord {
                 record.setCreatedAt(createdAt);
                 record.setUpdatedAt(updatedAt);
                 record.setVersion(version);
+                record.setOrder(order);
 
                 records.add(record);
             }
         }
 
         return records;
+    }
+
+    public BigDecimal getOrder() {
+        return order;
+    }
+
+    public void setOrder(BigDecimal order) {
+        this.order = order;
     }
 }

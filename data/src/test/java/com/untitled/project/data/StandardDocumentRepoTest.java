@@ -2,6 +2,7 @@ package com.untitled.project.data;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -26,7 +27,7 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
 @Testcontainers
-class StandardDocumentRepoTest {
+public class StandardDocumentRepoTest {
     
     @Container
     private static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine")
@@ -83,8 +84,8 @@ class StandardDocumentRepoTest {
         HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
         UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
 
-        content.put(identifierGenerator.generateUnique(), new StandardDocumentContentEntry("title1", "content1"));
-        content.put(identifierGenerator.generateUnique(), new StandardDocumentContentEntry("title2", "content2"));
+        content.put(identifierGenerator.generateUnique(), new StandardDocumentContentEntry("title1", "content1", new BigDecimal(1)));
+        content.put(identifierGenerator.generateUnique(), new StandardDocumentContentEntry("title2", "content2", new BigDecimal(2)));
 
         StandardDocument document = new StandardDocument(content);
         UuidIdentifier identifier = document.getId();

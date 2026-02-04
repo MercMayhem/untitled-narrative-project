@@ -36,7 +36,7 @@ public class RecordToStandardDocumentConverter implements StandardDocumentConver
                 .map(new Function<StandardDocumentContentRecord, SimpleEntry<UuidIdentifier, StandardDocumentContentEntry>>() {
                     public SimpleEntry<UuidIdentifier, StandardDocumentContentEntry> apply(StandardDocumentContentRecord contentRecord) {
                         UuidIdentifier contentId = new UuidIdentifier(contentRecord.getId(), contentRecord.getVersion());
-                        StandardDocumentContentEntry contentEntry = new StandardDocumentContentEntry(contentRecord.getTitle(), contentRecord.getContent());
+                        StandardDocumentContentEntry contentEntry = new StandardDocumentContentEntry(contentRecord.getTitle(), contentRecord.getContent(), contentRecord.getOrder());
                         return new SimpleEntry<UuidIdentifier, StandardDocumentContentEntry>(contentId, contentEntry);
                     }
                 })

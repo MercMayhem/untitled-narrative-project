@@ -10,6 +10,7 @@ CREATE TABLE document_content(
     document_id UUID NOT NULL,
     title VARCHAR(50) NOT NULL,
     content TEXT NOT NULL DEFAULT '',
+    sort_order NUMERIC NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     version BIGINT NOT NULL DEFAULT 1,

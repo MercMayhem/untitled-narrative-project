@@ -1,12 +1,24 @@
 package com.untitled.project.models.document;
 
+import java.math.BigDecimal;
+
 public class StandardDocumentContentEntry {
     String title;
     String content;
+    BigDecimal order;
 
-    public StandardDocumentContentEntry(String title, String content) {
+    public BigDecimal getOrder() {
+        return order;
+    }
+
+    public void setOrder(BigDecimal order) {
+        this.order = order;
+    }
+
+    public StandardDocumentContentEntry(String title, String content, BigDecimal order) {
         this.title = title;
         this.content = content;
+        this.order = order;
     }
 
     public String getTitle() {
