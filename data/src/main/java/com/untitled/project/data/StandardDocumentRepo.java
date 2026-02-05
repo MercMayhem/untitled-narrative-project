@@ -86,10 +86,31 @@ public class StandardDocumentRepo implements Closeable {
         }
     }
 
-    // public void linkDocument(UuidIdentifier document, UuidIdentifier linkDocument) {
-    //     // TODO Auto-generated method stub
-        
-    // }
+     public void linkDocuments(UuidIdentifier sourceDocument, UuidIdentifier targetDocument) throws SQLException {
+         Connection connection = null;
+         try {
+             connection = StandardDocumentRepo.ds().getConnection();
+             connection.setAutoCommit(false);
+             connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+             int rowsAffected = DocumentLinkRecord.link(sourceDocument, targetDocument, connection);
+
+             if (rowsAffected == 0) {
+                 throw new SQLException("Document version mismatch or document not found");
+             }
+
+             connection.commit();
+         } catch (SQLException e) {
+             if (connection != null) {
+                 connection.rollback();
+             }
+             throw e;
+         } finally {
+             if (connection != null) {
+                 connection.close();
+             }
+         }
+     }
 
     private void insertDocument(Document<UUID, UuidIdentifier, StandardDocumentContent> document, Connection connection) throws SQLException {
         // TODO: implement using the converter class
@@ -277,7 +298,9 @@ public class StandardDocumentRepo implements Closeable {
 
             connection.commit();
         } catch (SQLException e) {
-            connection.rollback();
+            if (connection != null) {
+                connection.rollback();
+            }
             throw e;
         } finally {
             if (connection != null) {
@@ -340,7 +363,9 @@ public class StandardDocumentRepo implements Closeable {
             connection.commit();
             return res;
         } catch (SQLException e) {
-            connection.rollback();
+            if (connection != null) {
+                connection.rollback();
+            }
             throw e;
         } finally {
             if (connection != null) {
@@ -349,9 +374,77 @@ public class StandardDocumentRepo implements Closeable {
         }
     }
 
-    public void unlinkDocument(UuidIdentifier document, UuidIdentifier linkDocument, Connection connection) {
-        // TODO Auto-generated method stub
-        
+    public void unlinkDocuments(UuidIdentifier sourceDocument, UuidIdentifier targetDocument) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+            int deletedCount = DocumentLinkRecord.unlink(sourceDocument, targetDocument, connection);
+
+            if (deletedCount == 0) {
+                throw new SQLException("Link not found or document version mismatch");
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+    public Vector<DocumentLinkRecord> getDocumentLinks(UuidIdentifier documentId) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Vector<DocumentLinkRecord> records = DocumentLinkRecord.getOutgoingLinks(documentId.value(), connection);
+
+            connection.commit();
+
+            return records;
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public Vector<DocumentLinkRecord> getIncomingDocumentLinks(UuidIdentifier documentId) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Vector<DocumentLinkRecord> records = DocumentLinkRecord.getIncomingLinks(documentId.value(), connection);
+
+            connection.commit();
+
+            return records;
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
     }
 
     @Override

@@ -8,7 +8,7 @@ public interface DocumentOperations<U, V extends DocumentIdentifier<U>, W extend
     public DocumentInsertResult insertDocument(Document<U, V, W> document) throws Exception;
     public DocumentUpdateResult updateDocument(X documentUpdate) throws Exception;
     public DocumentDeleteResult deleteDocument(V id) throws Exception;
-    public DocumentInsertResult getDocumentById(V id) throws Exception;
+    public DocumentGetResult<U, V, W> getDocumentById(V id) throws Exception;
     public DocumentLinkResult linkDocument(V document, V linkDocument) throws Exception;
     public DocumentLinkResult unlinkDocument(V document, V linkDocument) throws Exception;
 }

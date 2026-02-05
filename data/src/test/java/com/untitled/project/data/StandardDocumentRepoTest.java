@@ -6,8 +6,8 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.HashMap;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import com.untitled.project.data.update.DeleteStandardDocumentContentResult;
 import com.untitled.project.data.update.InsertStandardDocumentContentResult;
@@ -315,5 +315,263 @@ public class StandardDocumentRepoTest {
         assertTrue(retrievedOptional.isPresent());
         assertTrue(retrievedOptional.get().getContent().isPresent());
         assertEquals(1, retrievedOptional.get().getContent().get().getContent().size());
+    }
+    @Test
+    void testLinkDocuments() throws SQLException {
+        // Arrange - Create two documents
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content1 = new HashMap<>();
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content2 = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        content1.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc1 title", "doc1 content", new BigDecimal(1)));
+        content2.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc2 title", "doc2 content", new BigDecimal(1)));
+
+        StandardDocument document1 = new StandardDocument(content1);
+        StandardDocument document2 = new StandardDocument(content2);
+
+        repo.insertDocument(document1);
+        repo.insertDocument(document2);
+
+        // Get current versions
+        StandardDocument currentDoc1 = repo.getDocumentById(document1.getId()).get();
+        StandardDocument currentDoc2 = repo.getDocumentById(document2.getId()).get();
+
+        UuidIdentifier doc1Id = new UuidIdentifier(currentDoc1.getId().value(), currentDoc1.getId().getVersion());
+        UuidIdentifier doc2Id = new UuidIdentifier(currentDoc2.getId().value(), currentDoc2.getId().getVersion());
+
+        // Act
+        repo.linkDocuments(doc1Id, doc2Id);
+
+        // Assert
+        Vector<DocumentLinkRecord> links = repo.getDocumentLinks(doc1Id);
+        assertEquals(1, links.size());
+        assertEquals(doc1Id.value(), links.get(0).getSourceDocumentId());
+        assertEquals(doc2Id.value(), links.get(0).getTargetDocumentId());
+        assertNotNull(links.get(0).getCreatedAt());
+
+        // Verify incoming links
+        Vector<DocumentLinkRecord> incomingLinks = repo.getIncomingDocumentLinks(doc2Id);
+        assertEquals(1, incomingLinks.size());
+        assertEquals(doc1Id.value(), incomingLinks.get(0).getSourceDocumentId());
+        assertEquals(doc2Id.value(), incomingLinks.get(0).getTargetDocumentId());
+    }
+
+    @Test
+    void testLinkDocumentsWithVersionMismatch() throws SQLException {
+        // Arrange - Create two documents
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content1 = new HashMap<>();
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content2 = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        content1.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc1 title", "doc1 content", new BigDecimal(1)));
+        content2.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc2 title", "doc2 content", new BigDecimal(1)));
+
+        StandardDocument document1 = new StandardDocument(content1);
+        StandardDocument document2 = new StandardDocument(content2);
+
+        repo.insertDocument(document1);
+        repo.insertDocument(document2);
+
+        StandardDocument currentDoc2 = repo.getDocumentById(document2.getId()).get();
+
+        // Use wrong version for doc1
+        UuidIdentifier doc1IdWrongVersion = new UuidIdentifier(document1.getId().value(), 999L);
+        UuidIdentifier doc2Id = new UuidIdentifier(currentDoc2.getId().value(), currentDoc2.getId().getVersion());
+
+        // Act & Assert
+        assertThrows(SQLException.class, () -> {
+            repo.linkDocuments(doc1IdWrongVersion, doc2Id);
+        });
+    }
+
+    @Test
+    void testLinkDocumentsAlreadyLinked() throws SQLException {
+        // Arrange - Create and link two documents
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content1 = new HashMap<>();
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content2 = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        content1.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc1 title", "doc1 content", new BigDecimal(1)));
+        content2.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc2 title", "doc2 content", new BigDecimal(1)));
+
+        StandardDocument document1 = new StandardDocument(content1);
+        StandardDocument document2 = new StandardDocument(content2);
+
+        repo.insertDocument(document1);
+        repo.insertDocument(document2);
+
+        StandardDocument currentDoc1 = repo.getDocumentById(document1.getId()).get();
+        StandardDocument currentDoc2 = repo.getDocumentById(document2.getId()).get();
+
+        UuidIdentifier doc1Id = new UuidIdentifier(currentDoc1.getId().value(), currentDoc1.getId().getVersion());
+        UuidIdentifier doc2Id = new UuidIdentifier(currentDoc2.getId().value(), currentDoc2.getId().getVersion());
+
+        repo.linkDocuments(doc1Id, doc2Id);
+
+        // Act - Link again (should update created_at due to ON CONFLICT DO UPDATE)
+        repo.linkDocuments(doc1Id, doc2Id);
+
+        // Assert - Still only one link
+        Vector<DocumentLinkRecord> links = repo.getDocumentLinks(doc1Id);
+        assertEquals(1, links.size());
+    }
+
+    @Test
+    void testUnlinkDocuments() throws SQLException {
+        // Arrange - Create and link two documents
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content1 = new HashMap<>();
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content2 = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        content1.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc1 title", "doc1 content", new BigDecimal(1)));
+        content2.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc2 title", "doc2 content", new BigDecimal(1)));
+
+        StandardDocument document1 = new StandardDocument(content1);
+        StandardDocument document2 = new StandardDocument(content2);
+
+        repo.insertDocument(document1);
+        repo.insertDocument(document2);
+
+        StandardDocument currentDoc1 = repo.getDocumentById(document1.getId()).get();
+        StandardDocument currentDoc2 = repo.getDocumentById(document2.getId()).get();
+
+        UuidIdentifier doc1Id = new UuidIdentifier(currentDoc1.getId().value(), currentDoc1.getId().getVersion());
+        UuidIdentifier doc2Id = new UuidIdentifier(currentDoc2.getId().value(), currentDoc2.getId().getVersion());
+
+        repo.linkDocuments(doc1Id, doc2Id);
+
+        // Act
+        repo.unlinkDocuments(doc1Id, doc2Id);
+
+        // Assert
+        Vector<DocumentLinkRecord> links = repo.getDocumentLinks(doc1Id);
+        assertEquals(0, links.size());
+
+        Vector<DocumentLinkRecord> incomingLinks = repo.getIncomingDocumentLinks(doc2Id);
+        assertEquals(0, incomingLinks.size());
+    }
+
+    @Test
+    void testUnlinkDocumentsWithVersionMismatch() throws SQLException {
+        // Arrange - Create and link two documents
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content1 = new HashMap<>();
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content2 = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        content1.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc1 title", "doc1 content", new BigDecimal(1)));
+        content2.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc2 title", "doc2 content", new BigDecimal(1)));
+
+        StandardDocument document1 = new StandardDocument(content1);
+        StandardDocument document2 = new StandardDocument(content2);
+
+        repo.insertDocument(document1);
+        repo.insertDocument(document2);
+
+        StandardDocument currentDoc1 = repo.getDocumentById(document1.getId()).get();
+        StandardDocument currentDoc2 = repo.getDocumentById(document2.getId()).get();
+
+        UuidIdentifier doc1Id = new UuidIdentifier(currentDoc1.getId().value(), currentDoc1.getId().getVersion());
+        UuidIdentifier doc2Id = new UuidIdentifier(currentDoc2.getId().value(), currentDoc2.getId().getVersion());
+
+        repo.linkDocuments(doc1Id, doc2Id);
+
+        // Try to unlink with wrong version
+        UuidIdentifier doc1IdWrongVersion = new UuidIdentifier(doc1Id.value(), 999L);
+
+        // Act & Assert
+        assertThrows(SQLException.class, () -> {
+            repo.unlinkDocuments(doc1IdWrongVersion, doc2Id);
+        });
+
+        // Verify link still exists
+        Vector<DocumentLinkRecord> links = repo.getDocumentLinks(doc1Id);
+        assertEquals(1, links.size());
+    }
+
+    @Test
+    void testUnlinkNonExistentLink() throws SQLException {
+        // Arrange - Create two documents but don't link them
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content1 = new HashMap<>();
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content2 = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        content1.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc1 title", "doc1 content", new BigDecimal(1)));
+        content2.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc2 title", "doc2 content", new BigDecimal(1)));
+
+        StandardDocument document1 = new StandardDocument(content1);
+        StandardDocument document2 = new StandardDocument(content2);
+
+        repo.insertDocument(document1);
+        repo.insertDocument(document2);
+
+        StandardDocument currentDoc1 = repo.getDocumentById(document1.getId()).get();
+        StandardDocument currentDoc2 = repo.getDocumentById(document2.getId()).get();
+
+        UuidIdentifier doc1Id = new UuidIdentifier(currentDoc1.getId().value(), currentDoc1.getId().getVersion());
+        UuidIdentifier doc2Id = new UuidIdentifier(currentDoc2.getId().value(), currentDoc2.getId().getVersion());
+
+        // Act & Assert
+        assertThrows(SQLException.class, () -> {
+            repo.unlinkDocuments(doc1Id, doc2Id);
+        });
+    }
+
+    @Test
+    void testGetDocumentLinksMultiple() throws SQLException {
+        // Arrange - Create three documents and link doc1 to both doc2 and doc3
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content1 = new HashMap<>();
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content2 = new HashMap<>();
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content3 = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        content1.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc1", "content1", new BigDecimal(1)));
+        content2.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc2", "content2", new BigDecimal(1)));
+        content3.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("doc3", "content3", new BigDecimal(1)));
+
+        StandardDocument document1 = new StandardDocument(content1);
+        StandardDocument document2 = new StandardDocument(content2);
+        StandardDocument document3 = new StandardDocument(content3);
+
+        repo.insertDocument(document1);
+        repo.insertDocument(document2);
+        repo.insertDocument(document3);
+
+        StandardDocument currentDoc1 = repo.getDocumentById(document1.getId()).get();
+        StandardDocument currentDoc2 = repo.getDocumentById(document2.getId()).get();
+        StandardDocument currentDoc3 = repo.getDocumentById(document3.getId()).get();
+
+        UuidIdentifier doc1Id = new UuidIdentifier(currentDoc1.getId().value(), currentDoc1.getId().getVersion());
+        UuidIdentifier doc2Id = new UuidIdentifier(currentDoc2.getId().value(), currentDoc2.getId().getVersion());
+        UuidIdentifier doc3Id = new UuidIdentifier(currentDoc3.getId().value(), currentDoc3.getId().getVersion());
+
+        // Act
+        repo.linkDocuments(doc1Id, doc2Id);
+        repo.linkDocuments(doc1Id, doc3Id);
+
+        // Assert
+        Vector<DocumentLinkRecord> outgoingLinks = repo.getDocumentLinks(doc1Id);
+        assertEquals(2, outgoingLinks.size());
+
+        // Verify both targets are present
+        Set<UUID> targetIds = outgoingLinks.stream()
+                .map(DocumentLinkRecord::getTargetDocumentId)
+                .collect(Collectors.toSet());
+        assertTrue(targetIds.contains(doc2Id.value()));
+        assertTrue(targetIds.contains(doc3Id.value()));
     }
 }
