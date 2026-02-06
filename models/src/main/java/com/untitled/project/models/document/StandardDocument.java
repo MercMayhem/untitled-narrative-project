@@ -27,14 +27,11 @@ public class StandardDocument extends Document<UUID, UuidIdentifier, StandardDoc
 
     @Override
     public Optional<StandardDocumentContent> getContent() {
-        // TODO Auto-generated method stub
         return super.getContent();
     }
 
     @Override
     public void setContent(Optional<StandardDocumentContent> content) {
-        // TODO Auto-generated method stub
         super.setContent(content);
     }
-
 }

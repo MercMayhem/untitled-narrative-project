@@ -5,12 +5,12 @@ import java.util.Optional;
 import com.untitled.project.core.identifier.SnapshotIdentifier;
 import com.untitled.project.core.identifier.generator.IdentifierGenerator;
 
-public abstract class Snapshot<T> {
+public abstract class Snapshot<T, W extends DocumentCollectionInfo> {
     private Optional<SnapshotIdentifier<T>> previous;
     private Optional<SnapshotIdentifier<T>> next;
-    private DocumentCollection<T, SnapshotIdentifier<T>> collection;
+    private DocumentCollection<T, SnapshotIdentifier<T>, W> collection;
 
-    public Snapshot(IdentifierGenerator<SnapshotIdentifier<T>, T> snapshotIdGenerator, Optional<SnapshotIdentifier<T>> previous, DocumentCollection<T, SnapshotIdentifier<T>> collection) {
+    public Snapshot(IdentifierGenerator<SnapshotIdentifier<T>, T> snapshotIdGenerator, Optional<SnapshotIdentifier<T>> previous, DocumentCollection<T, SnapshotIdentifier<T>, W> collection) {
         this.previous = previous;
         this.collection = collection;
     }

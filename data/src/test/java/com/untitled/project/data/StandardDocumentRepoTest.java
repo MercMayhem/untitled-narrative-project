@@ -13,10 +13,12 @@ import com.untitled.project.data.update.DeleteStandardDocumentContentResult;
 import com.untitled.project.data.update.InsertStandardDocumentContentResult;
 import com.untitled.project.data.update.StandardDocumentUpdateResult;
 import com.untitled.project.data.update.UpdateStandardDocumentContentResult;
+import com.untitled.project.models.document.*;
 import com.untitled.project.models.document.update.DeleteDocumentContent;
 import com.untitled.project.models.document.update.InsertDocumentContent;
 import com.untitled.project.models.document.update.StandardDocumentUpdate;
 import com.untitled.project.models.document.update.UpdateDocumentContent;
+import com.untitled.project.models.util.Page;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,11 +28,6 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.untitled.project.models.document.StandardDocument;
-import com.untitled.project.models.document.StandardDocumentContent;
-import com.untitled.project.models.document.StandardDocumentContentEntry;
-import com.untitled.project.models.document.UuidIdentifier;
-import com.untitled.project.models.document.UuidIdentifierGenerator;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -573,5 +570,513 @@ public class StandardDocumentRepoTest {
                 .collect(Collectors.toSet());
         assertTrue(targetIds.contains(doc2Id.value()));
         assertTrue(targetIds.contains(doc3Id.value()));
+    }
+
+    // ========== Collection CRUD Tests ==========
+
+    @Test
+    void testCreateCollection() throws SQLException {
+        // Arrange
+        StandardDocumentCollection collection = new StandardDocumentCollection(new StandardDocumentCollectionInfo("My Collection"));
+        UuidIdentifier collectionId = collection.getId();
+
+        // Act
+        repo.createCollection(collection);
+
+        // Assert
+        Optional<StandardDocumentCollection> retrieved = repo.getCollectionById(collectionId);
+        assertTrue(retrieved.isPresent());
+        assertEquals("My Collection", retrieved.get().getInfo().rawString());
+        assertEquals(collectionId.value(), retrieved.get().getId().value());
+    }
+
+    @Test
+    void testGetAllCollections() throws SQLException {
+        // Arrange
+        StandardDocumentCollection collection1 = new StandardDocumentCollection(new StandardDocumentCollectionInfo("Collection 1"));
+        StandardDocumentCollection collection2 = new StandardDocumentCollection(new StandardDocumentCollectionInfo("Collection 2"));
+
+        repo.createCollection(collection1);
+        repo.createCollection(collection2);
+
+        // Act
+        Vector<StandardDocumentCollection> collections = repo.getAllCollections();
+
+        // Assert
+        assertTrue(collections.size() >= 2);
+        Set<String> titles = collections.stream()
+                .map(c -> c.getInfo().rawString())
+                .collect(Collectors.toSet());
+        assertTrue(titles.contains("Collection 1"));
+        assertTrue(titles.contains("Collection 2"));
+    }
+
+    @Test
+    void testUpdateCollection() throws SQLException {
+        // Arrange
+        StandardDocumentCollection collection = new StandardDocumentCollection(new StandardDocumentCollectionInfo("Original Title"));
+        repo.createCollection(collection);
+
+        // Act
+        StandardDocumentCollectionInfo updatedInfo = new StandardDocumentCollectionInfo("Updated Title");
+        repo.updateCollectionInfo(collection.getId(), updatedInfo);
+
+        // Assert
+        Optional<StandardDocumentCollection> retrieved = repo.getCollectionById(collection.getId());
+        assertTrue(retrieved.isPresent());
+        assertEquals("Updated Title", retrieved.get().getInfo().rawString());
+    }
+
+    @Test
+    void testUpdateNonExistentCollection() throws SQLException {
+        // Arrange
+        UuidIdentifier nonExistentId = new UuidIdentifier(UUID.randomUUID(), 0L);
+        StandardDocumentCollectionInfo info = new StandardDocumentCollectionInfo("Title");
+
+        // Act & Assert
+        assertThrows(IllegalArgumentException.class, () -> {
+            repo.updateCollectionInfo(nonExistentId, info);
+        });
+    }
+
+    @Test
+    void testDeleteCollection() throws SQLException {
+        // Arrange
+        StandardDocumentCollection collection = new StandardDocumentCollection(new StandardDocumentCollectionInfo("To Delete"));
+        repo.createCollection(collection);
+        UuidIdentifier collectionId = collection.getId();
+
+        // Act
+        repo.deleteCollection(collectionId);
+
+        // Assert
+        Optional<StandardDocumentCollection> retrieved = repo.getCollectionById(collectionId);
+        assertFalse(retrieved.isPresent());
+    }
+
+    @Test
+    void testDeleteNonExistentCollection() throws SQLException {
+        // Arrange
+        UuidIdentifier nonExistentId = new UuidIdentifier(UUID.randomUUID(), 0L);
+
+        // Act & Assert
+        assertThrows(IllegalArgumentException.class, () -> {
+            repo.deleteCollection(nonExistentId);
+        });
+    }
+
+// ========== Pagination Tests for Collections ==========
+
+    @Test
+    void testGetAllCollectionsPaginated() throws SQLException {
+        // Arrange - Create 15 collections
+        for (int i = 1; i <= 15; i++) {
+            StandardDocumentCollection collection = new StandardDocumentCollection(
+                    new StandardDocumentCollectionInfo("Collection " + i)
+            );
+            repo.createCollection(collection);
+        }
+
+        // Act - Get first page (10 items)
+        Page<StandardDocumentCollection> page1 = repo.getAllCollections(1, 10);
+
+        // Assert
+        assertEquals(10, page1.getItems().size());
+        assertTrue(page1.getTotalCount() >= 15);
+        assertEquals(1, page1.getPageNumber());
+        assertEquals(10, page1.getPageSize());
+        assertTrue(page1.getTotalPages() >= 2);
+        assertTrue(page1.hasNext());
+        assertFalse(page1.hasPrevious());
+
+        // Act - Get second page
+        Page<StandardDocumentCollection> page2 = repo.getAllCollections(2, 10);
+
+        // Assert
+        assertTrue(page2.getItems().size() >= 5);
+        assertEquals(2, page2.getPageNumber());
+    }
+
+    @Test
+    void testPaginationEmptyCollections() throws SQLException {
+        // Act
+        Page<StandardDocumentCollection> page = repo.getAllCollections(1, 10);
+
+        // Assert - May have collections from other tests, but should not fail
+        assertTrue(page.getTotalCount() >= 0);
+        assertEquals(1, page.getPageNumber());
+        assertEquals(10, page.getPageSize());
+    }
+
+    @Test
+    void testPaginationSinglePageCollections() throws SQLException {
+        // Arrange - Create 5 collections
+        for (int i = 1; i <= 5; i++) {
+            StandardDocumentCollection collection = new StandardDocumentCollection(
+                    new StandardDocumentCollectionInfo("Collection " + i)
+            );
+            repo.createCollection(collection);
+        }
+
+        // Act - Request page size of 10 when only 5 new items exist
+        Page<StandardDocumentCollection> page = repo.getAllCollections(1, 10);
+
+        // Assert
+        assertTrue(page.getItems().size() >= 5);
+        assertEquals(1, page.getPageNumber());
+    }
+
+// ========== Document-Collection Association Tests ==========
+
+    @Test
+    void testAddDocumentToCollection() throws SQLException {
+        // Arrange
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+        content.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("title", "content", new BigDecimal(1)));
+
+        StandardDocument document = new StandardDocument(content);
+        repo.insertDocument(document);
+
+        StandardDocumentCollection collection = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("My Collection")
+        );
+        repo.createCollection(collection);
+
+        // Get current document version
+        StandardDocument currentDoc = repo.getDocumentById(document.getId()).get();
+        UuidIdentifier docId = new UuidIdentifier(currentDoc.getId().value(), currentDoc.getId().getVersion());
+
+        // Act
+        repo.addDocumentToCollection(docId, collection.getId());
+
+        // Assert
+        Vector<DocumentCollectionAssociationRecord> docsInCollection =
+                repo.getDocumentsInCollection(collection.getId());
+        assertEquals(1, docsInCollection.size());
+        assertEquals(docId.value(), docsInCollection.get(0).getDocumentId());
+    }
+
+    @Test
+    void testAddDocumentToCollectionWithVersionMismatch() throws SQLException {
+        // Arrange
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+        content.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("title", "content", new BigDecimal(1)));
+
+        StandardDocument document = new StandardDocument(content);
+        repo.insertDocument(document);
+
+        StandardDocumentCollection collection = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("My Collection")
+        );
+        repo.createCollection(collection);
+
+        // Use wrong version
+        UuidIdentifier docIdWrongVersion = new UuidIdentifier(document.getId().value(), 999L);
+
+        // Act & Assert
+        assertThrows(SQLException.class, () -> {
+            repo.addDocumentToCollection(docIdWrongVersion, collection.getId());
+        });
+    }
+
+    @Test
+    void testAddDocumentToCollectionAlreadyInCollection() throws SQLException {
+        // Arrange
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+        content.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("title", "content", new BigDecimal(1)));
+
+        StandardDocument document = new StandardDocument(content);
+        repo.insertDocument(document);
+
+        StandardDocumentCollection collection = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("My Collection")
+        );
+        repo.createCollection(collection);
+
+        StandardDocument currentDoc = repo.getDocumentById(document.getId()).get();
+        repo.addDocumentToCollection(currentDoc.getId(), collection.getId());
+
+        // Act - Add again (should fail due to ON CONFLICT DO NOTHING returning 0 rows)
+        assertThrows(SQLException.class, () -> {
+            repo.addDocumentToCollection(currentDoc.getId(), collection.getId());
+        });
+    }
+
+    @Test
+    void testRemoveDocumentFromCollection() throws SQLException {
+        // Arrange
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+        content.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("title", "content", new BigDecimal(1)));
+
+        StandardDocument document = new StandardDocument(content);
+        repo.insertDocument(document);
+
+        StandardDocumentCollection collection = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("My Collection")
+        );
+        repo.createCollection(collection);
+
+        StandardDocument currentDoc = repo.getDocumentById(document.getId()).get();
+
+        repo.addDocumentToCollection(currentDoc.getId(), collection.getId());
+
+        // Act
+        repo.removeDocumentFromCollection(currentDoc.getId(), collection.getId());
+
+        // Assert
+        Vector<DocumentCollectionAssociationRecord> docsInCollection =
+                repo.getDocumentsInCollection(collection.getId());
+        assertEquals(0, docsInCollection.size());
+    }
+
+    @Test
+    void testRemoveDocumentFromCollectionNotInCollection() throws SQLException {
+        // Arrange
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+        content.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("title", "content", new BigDecimal(1)));
+
+        StandardDocument document = new StandardDocument(content);
+        repo.insertDocument(document);
+
+        StandardDocumentCollection collection = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("My Collection")
+        );
+        repo.createCollection(collection);
+
+        StandardDocument currentDoc = repo.getDocumentById(document.getId()).get();
+        UuidIdentifier docId = new UuidIdentifier(currentDoc.getId().value(), currentDoc.getId().getVersion() + 1);
+
+        // Act & Assert
+        assertThrows(SQLException.class, () -> {
+            repo.removeDocumentFromCollection(docId, collection.getId());
+        });
+    }
+
+    @Test
+    void testGetCollectionsForDocument() throws SQLException {
+        // Arrange
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+        content.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("title", "content", new BigDecimal(1)));
+
+        StandardDocument document = new StandardDocument(content);
+        repo.insertDocument(document);
+
+        StandardDocumentCollection collection1 = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("Collection 1")
+        );
+        StandardDocumentCollection collection2 = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("Collection 2")
+        );
+        repo.createCollection(collection1);
+        repo.createCollection(collection2);
+
+        StandardDocument currentDoc = repo.getDocumentById(document.getId()).get();
+
+        repo.addDocumentToCollection(currentDoc.getId(), collection1.getId());
+        repo.addDocumentToCollection(currentDoc.getId(), collection2.getId());
+
+        // Act
+        Vector<DocumentCollectionAssociationRecord> collections =
+                repo.getCollectionsForDocument(currentDoc.getId());
+
+        // Assert
+        assertEquals(2, collections.size());
+        Set<UUID> collectionIds = collections.stream()
+                .map(DocumentCollectionAssociationRecord::getCollectionId)
+                .collect(Collectors.toSet());
+        assertTrue(collectionIds.contains(collection1.getId().value()));
+        assertTrue(collectionIds.contains(collection2.getId().value()));
+    }
+
+    @Test
+    void testDeleteCollectionCascadesAssociations() throws SQLException {
+        // Arrange
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+        content.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("title", "content", new BigDecimal(1)));
+
+        StandardDocument document = new StandardDocument(content);
+        repo.insertDocument(document);
+
+        StandardDocumentCollection collection = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("My Collection")
+        );
+        repo.createCollection(collection);
+
+        StandardDocument currentDoc = repo.getDocumentById(document.getId()).get();
+
+        repo.addDocumentToCollection(currentDoc.getId(), collection.getId());
+
+        // Act
+        repo.deleteCollection(collection.getId());
+
+        // Assert - Association should be deleted due to CASCADE
+        Vector<DocumentCollectionAssociationRecord> collections =
+                repo.getCollectionsForDocument(currentDoc.getId());
+        assertEquals(0, collections.size());
+    }
+
+    // ========== Pagination Tests for Document-Collection Associations ==========
+
+    @Test
+    void testGetDocumentsInCollectionPaginated() throws SQLException {
+        // Arrange - Create collection and add 15 documents
+        StandardDocumentCollection collection = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("My Collection")
+        );
+        repo.createCollection(collection);
+
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        for (int i = 1; i <= 15; i++) {
+            HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+            content.put(identifierGenerator.generateUnique(),
+                    new StandardDocumentContentEntry("title " + i, "content " + i, new BigDecimal(1)));
+
+            StandardDocument document = new StandardDocument(content);
+            repo.insertDocument(document);
+
+            StandardDocument currentDoc = repo.getDocumentById(document.getId()).get();
+            repo.addDocumentToCollection(currentDoc.getId(), collection.getId());
+        }
+
+        // Act - Get first page
+        Page<DocumentCollectionAssociationRecord> page1 =
+                repo.getDocumentsInCollection(collection.getId(), 1, 10);
+
+        // Assert
+        assertEquals(10, page1.getItems().size());
+        assertEquals(15, page1.getTotalCount());
+        assertEquals(1, page1.getPageNumber());
+        assertEquals(10, page1.getPageSize());
+        assertEquals(2, page1.getTotalPages());
+        assertTrue(page1.hasNext());
+        assertFalse(page1.hasPrevious());
+
+        // Act - Get second page
+        Page<DocumentCollectionAssociationRecord> page2 =
+                repo.getDocumentsInCollection(collection.getId(), 2, 10);
+
+        // Assert
+        assertEquals(5, page2.getItems().size());
+        assertEquals(15, page2.getTotalCount());
+        assertEquals(2, page2.getPageNumber());
+        assertFalse(page2.hasNext());
+        assertTrue(page2.hasPrevious());
+    }
+
+    @Test
+    void testGetCollectionsForDocumentPaginated() throws SQLException {
+        // Arrange - Create document and add to 15 collections
+        HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+        content.put(identifierGenerator.generateUnique(),
+                new StandardDocumentContentEntry("title", "content", new BigDecimal(1)));
+
+        StandardDocument document = new StandardDocument(content);
+        repo.insertDocument(document);
+
+        StandardDocument currentDoc = repo.getDocumentById(document.getId()).get();
+
+        for (int i = 1; i <= 15; i++) {
+            StandardDocumentCollection collection = new StandardDocumentCollection(
+                    new StandardDocumentCollectionInfo("Collection " + i)
+            );
+            repo.createCollection(collection);
+            repo.addDocumentToCollection(currentDoc.getId(), collection.getId());
+        }
+
+        // Act - Get first page
+        Page<DocumentCollectionAssociationRecord> page1 =
+                repo.getCollectionsForDocument(currentDoc.getId(), 1, 10);
+
+        // Assert
+        assertEquals(10, page1.getItems().size());
+        assertEquals(15, page1.getTotalCount());
+        assertEquals(1, page1.getPageNumber());
+        assertEquals(10, page1.getPageSize());
+        assertEquals(2, page1.getTotalPages());
+        assertTrue(page1.hasNext());
+        assertFalse(page1.hasPrevious());
+
+        // Act - Get second page
+        Page<DocumentCollectionAssociationRecord> page2 =
+                repo.getCollectionsForDocument(currentDoc.getId(), 2, 10);
+
+        // Assert
+        assertEquals(5, page2.getItems().size());
+        assertEquals(15, page2.getTotalCount());
+        assertEquals(2, page2.getPageNumber());
+        assertFalse(page2.hasNext());
+        assertTrue(page2.hasPrevious());
+    }
+
+    @Test
+    void testPaginationEmptyDocumentsInCollection() throws SQLException {
+        // Arrange
+        StandardDocumentCollection collection = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("Empty Collection")
+        );
+        repo.createCollection(collection);
+
+        // Act
+        Page<DocumentCollectionAssociationRecord> page =
+                repo.getDocumentsInCollection(collection.getId(), 1, 10);
+
+        // Assert
+        assertEquals(0, page.getItems().size());
+        assertEquals(0, page.getTotalCount());
+        assertEquals(0, page.getTotalPages());
+        assertFalse(page.hasNext());
+        assertFalse(page.hasPrevious());
+    }
+
+    @Test
+    void testPaginationSinglePageDocumentsInCollection() throws SQLException {
+        // Arrange - Create collection with 5 documents
+        StandardDocumentCollection collection = new StandardDocumentCollection(
+                new StandardDocumentCollectionInfo("Small Collection")
+        );
+        repo.createCollection(collection);
+
+        UuidIdentifierGenerator identifierGenerator = new UuidIdentifierGenerator();
+
+        for (int i = 1; i <= 5; i++) {
+            HashMap<UuidIdentifier, StandardDocumentContentEntry> content = new HashMap<>();
+            content.put(identifierGenerator.generateUnique(),
+                    new StandardDocumentContentEntry("title " + i, "content " + i, new BigDecimal(1)));
+
+            StandardDocument document = new StandardDocument(content);
+            repo.insertDocument(document);
+
+            StandardDocument currentDoc = repo.getDocumentById(document.getId()).get();
+
+            repo.addDocumentToCollection(currentDoc.getId(), collection.getId());
+        }
+
+        // Act - Request page size of 10 when only 5 items exist
+        Page<DocumentCollectionAssociationRecord> page =
+                repo.getDocumentsInCollection(collection.getId(), 1, 10);
+
+        // Assert
+        assertEquals(5, page.getItems().size());
+        assertEquals(5, page.getTotalCount());
+        assertEquals(1, page.getPageNumber());
+        assertEquals(1, page.getTotalPages());
+        assertFalse(page.hasNext());
+        assertFalse(page.hasPrevious());
     }
 }

@@ -1,5 +1,6 @@
 CREATE TABLE document_collection (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
+    title VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ
 );

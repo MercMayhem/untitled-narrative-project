@@ -9,14 +9,14 @@ import java.util.stream.Collectors;
 
 import com.untitled.project.models.document.StandardDocument;
 import com.untitled.project.models.document.StandardDocumentContentEntry;
-import com.untitled.project.models.document.StandardDocumentConverter;
+import com.untitled.project.models.util.StandardDocumentConverter;
 import com.untitled.project.models.document.UuidIdentifier;
 
-public class RecordToStandardDocumentConverter implements StandardDocumentConverter {
+public class DocumentRecordToStandardDocumentConverter implements StandardDocumentConverter {
     StandardDocumentRecord documentRecord;
     Vector<StandardDocumentContentRecord> documentContentRecords;
     
-    public RecordToStandardDocumentConverter(StandardDocumentRecord documentRecord, Vector<StandardDocumentContentRecord> documentContentRecords) {
+    public DocumentRecordToStandardDocumentConverter(StandardDocumentRecord documentRecord, Vector<StandardDocumentContentRecord> documentContentRecords) {
         this.documentRecord = documentRecord;
         this.documentContentRecords = documentContentRecords;
     }

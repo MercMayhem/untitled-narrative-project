@@ -14,21 +14,19 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import com.untitled.project.core.Document;
+import com.untitled.project.core.DocumentCollection;
 import com.untitled.project.data.update.DeleteStandardDocumentContentResult;
 import com.untitled.project.data.update.InsertStandardDocumentContentResult;
 import com.untitled.project.data.update.StandardDocumentUpdateResult;
 import com.untitled.project.data.update.UpdateStandardDocumentContentResult;
-import com.untitled.project.models.document.StandardDocumentContentEntry;
-import com.untitled.project.models.document.StandardDocument;
-import com.untitled.project.models.document.StandardDocumentContent;
-import com.untitled.project.models.document.UuidIdentifier;
+import com.untitled.project.models.document.*;
 import com.untitled.project.models.document.update.DeleteDocumentContent;
 import com.untitled.project.models.document.update.InsertDocumentContent;
 import com.untitled.project.models.document.update.StandardDocumentUpdate;
 import com.untitled.project.models.document.update.UpdateDocumentContent;
+import com.untitled.project.models.util.Page;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -76,7 +74,7 @@ public class StandardDocumentRepo implements Closeable {
             Vector<StandardDocumentContentRecord> documentContentRecords = StandardDocumentContentRecord.get(id.value(), connection);
 
             connection.commit();
-            StandardDocument document = new RecordToStandardDocumentConverter(documentRecord, documentContentRecords).toStandardDocument();
+            StandardDocument document = new DocumentRecordToStandardDocumentConverter(documentRecord, documentContentRecords).toStandardDocument();
             return Optional.ofNullable(document);
         } catch (SQLException e) {
             connection.rollback();
@@ -435,6 +433,333 @@ public class StandardDocumentRepo implements Closeable {
             connection.commit();
 
             return records;
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    // ========== Document Collection CRUD ==========
+
+    public void createCollection(DocumentCollection<UUID, UuidIdentifier, StandardDocumentCollectionInfo> collection) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+            DocumentCollectionRecord record = new DocumentCollectionRecord(
+                    collection.getId().value(),
+                    collection.getInfo().rawString()
+            );
+
+            int rowsAffected = DocumentCollectionRecord.insert(record, connection);
+
+            if (rowsAffected == 0) {
+                throw new SQLException("Failed to create collection");
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public Optional<StandardDocumentCollection> getCollectionById(UuidIdentifier id) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Optional<DocumentCollectionRecord> recordOpt = DocumentCollectionRecord.get(id, connection);
+
+            connection.commit();
+
+            return recordOpt.map(documentCollectionRecord -> new DocumentCollectionRecordToStandardDocumentCollectionConverter(documentCollectionRecord).toStandardDocument());
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public Vector<StandardDocumentCollection> getAllCollections() throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Vector<DocumentCollectionRecord> records = DocumentCollectionRecord.getAll(connection);
+
+            connection.commit();
+
+            return records.stream()
+                    .map(documentCollectionRecord -> new DocumentCollectionRecordToStandardDocumentCollectionConverter(documentCollectionRecord).toStandardDocument())
+                    .collect(java.util.stream.Collectors.toCollection(Vector::new));
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public void updateCollectionInfo(UuidIdentifier identifier, StandardDocumentCollectionInfo info) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+            DocumentCollectionRecord record = new DocumentCollectionRecord(
+                    identifier.value(),
+                    info.rawString()
+            );
+
+            int rowsAffected = DocumentCollectionRecord.update(record, connection);
+
+            if (rowsAffected == 0) {
+                throw new IllegalArgumentException("Collection not found: " + identifier.value());
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public void deleteCollection(UuidIdentifier id) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+            int rowsAffected = DocumentCollectionRecord.delete(id, connection);
+
+            if (rowsAffected == 0) {
+                throw new IllegalArgumentException("Collection not found: " + id);
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    // Get all collections with pagination
+    public Page<StandardDocumentCollection> getAllCollections(int pageNumber, int pageSize) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Vector<DocumentCollectionRecord> records = DocumentCollectionRecord.getPaginated(pageNumber, pageSize, connection);
+            long totalCount = DocumentCollectionRecord.getTotalCount(connection);
+
+            connection.commit();
+
+            Vector<StandardDocumentCollection> collections = records.stream()
+                    .map(documentCollectionRecord -> new DocumentCollectionRecordToStandardDocumentCollectionConverter(documentCollectionRecord).toStandardDocument())
+                    .collect(java.util.stream.Collectors.toCollection(Vector::new));
+
+
+            return new Page<>(collections, totalCount, pageNumber, pageSize);
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    // ========== Document-Collection Association ==========
+
+    public void addDocumentToCollection(UuidIdentifier documentId, UuidIdentifier collectionId) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+            int rowsAffected = DocumentCollectionAssociationRecord.add(documentId, collectionId, connection);
+
+            if (rowsAffected == 0) {
+                throw new SQLException("Document version mismatch, document not found, or already in collection");
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public void removeDocumentFromCollection(UuidIdentifier documentId, UuidIdentifier collectionId) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+            int rowsAffected = DocumentCollectionAssociationRecord.remove(documentId, collectionId, connection);
+
+            if (rowsAffected == 0) {
+                throw new SQLException("Document not in collection, version mismatch, or document not found");
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public Vector<DocumentCollectionAssociationRecord> getDocumentsInCollection(UuidIdentifier collectionId) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Vector<DocumentCollectionAssociationRecord> records =
+                    DocumentCollectionAssociationRecord.getDocumentsInCollection(collectionId, connection);
+
+            connection.commit();
+
+            return records;
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public Page<DocumentCollectionAssociationRecord> getCollectionsForDocument(UuidIdentifier documentId, int pageNumber, int pageSize) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Vector<DocumentCollectionAssociationRecord> records =
+                    DocumentCollectionAssociationRecord.getCollectionsForDocument(documentId, pageNumber, pageSize, connection);
+            long totalCount = DocumentCollectionAssociationRecord.getCollectionCountForDocument(documentId, connection);
+
+            connection.commit();
+
+            return new Page<>(records, totalCount, pageNumber, pageSize);
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public Vector<DocumentCollectionAssociationRecord> getCollectionsForDocument(UuidIdentifier documentId) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Vector<DocumentCollectionAssociationRecord> records =
+                    DocumentCollectionAssociationRecord.getCollectionsForDocument(documentId, connection);
+
+            connection.commit();
+
+            return records;
+        } catch (SQLException e) {
+            if (connection != null) {
+                connection.rollback();
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
+        }
+    }
+
+    public Page<DocumentCollectionAssociationRecord> getDocumentsInCollection(UuidIdentifier collectionId, int pageNumber, int pageSize) throws SQLException {
+        Connection connection = null;
+        try {
+            connection = StandardDocumentRepo.ds().getConnection();
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+
+            Vector<DocumentCollectionAssociationRecord> records =
+                    DocumentCollectionAssociationRecord.getDocumentsInCollection(collectionId, pageNumber, pageSize, connection);
+            long totalCount = DocumentCollectionAssociationRecord.getDocumentCountInCollection(collectionId, connection);
+
+            connection.commit();
+
+            return new Page<>(records, totalCount, pageNumber, pageSize);
         } catch (SQLException e) {
             if (connection != null) {
                 connection.rollback();
