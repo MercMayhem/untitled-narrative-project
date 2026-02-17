@@ -13,8 +13,13 @@ public class StandardDocumentContent implements DocumentContent {
 
     @Override
     public String rawString() {
-        // TODO Auto-generated method stub
-        return null;
+        StringBuilder builder = new StringBuilder();
+
+        for (StandardDocumentContentEntry entry : content.values()) {
+            builder.append(entry.toString());
+        }
+
+        return builder.toString();
     }
 
     public HashMap<UuidIdentifier, StandardDocumentContentEntry> getContent() {
